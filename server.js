@@ -3,7 +3,7 @@ const cors = require('cors');
 require('dotenv').config(); // Loads the .env file for local development
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { getPrompt } = require('./promptService');
+const { getPrompt } = require('./promptService'); // ✅ fixed file name
 
 const app = express();
 // MODIFICATION: Use Render's port or 3000 for local dev
@@ -28,8 +28,7 @@ async function callGemini(filterName, message) {
     try {
         const prompt = getPrompt(filterName, message);
         const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+        const text = result.response.text(); // ✅ fixed usage
         return {
             filter: filterName,
             content: text
