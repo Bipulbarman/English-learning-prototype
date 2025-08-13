@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
@@ -9,18 +10,17 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Load API key from environment
+// --- SECURE API KEY HANDLING ---
+// The API key is loaded from environment variables on the server.
+// This is the correct and secure way to handle it.
 const apiKey = process.env.API_KEY;
 if (!apiKey) {
-    console.error("❌ API_KEY not found. Please set it in your environment variables.");
+    console.error("API_KEY not found. Please create a .env file and set your API_KEY.");
     process.exit(1);
 }
-
-// Create Gemini client
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); // ✅ matches free version tester
 
-// === Prompt builder ===
+// === Prompt builder function (merged from promptService.js) ===
 function getPrompt(filterName, message) {
     switch (filterName) {
         case 'Describe':
@@ -60,8 +60,9 @@ function getPrompt(filterName, message) {
     }
 }
 
-// === Helper: Call Gemini ===
-async function callGemini(filterName, message) {
+// === Helper function to call Gemini API ===
+// CHANGED: This function now accepts the 'model' object as a parameter
+async function callGemini(model, filterName, message) {
     try {
         const prompt = getPrompt(filterName, message);
         const result = await model.generateContent(prompt);
@@ -73,28 +74,38 @@ async function callGemini(filterName, message) {
     }
 }
 
-// === API Endpoint ===
+// === API Endpoint for Chat ===
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, filters } = req.body;
+        // CHANGED: Now accepts 'model' from the request body
+        const { message, filters, model: modelName } = req.body;
 
         if (!message || !Array.isArray(filters) || filters.length === 0) {
             return res.status(400).json({ error: 'Invalid request: "message" and a non-empty "filters" array are required.' });
         }
 
-        const results = await Promise.all(filters.map(f => callGemini(f, message)));
+        // CHANGED: Get the specified model, or default to "gemini-1.5-flash"
+        // This makes the endpoint flexible.
+        const modelToUse = genAI.getGenerativeModel({
+            model: modelName || "gemini-1.5-flash",
+        });
+
+        // CHANGED: Pass the initialized 'modelToUse' object to each API call
+        const apiCalls = filters.map(filter => callGemini(modelToUse, filter, message));
+        const results = await Promise.all(apiCalls);
         res.json(results);
+
     } catch (error) {
         console.error('Error in /api/chat endpoint:', error);
         res.status(500).json({ error: 'An internal server error occurred.' });
     }
 });
 
-// === Health check for Render ===
+// Health check route for Render
 app.get('/', (req, res) => {
-    res.send('✅ Gemini Chat Backend is running!');
+    res.send('Gemini Chat Backend is running!');
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
