@@ -71,13 +71,19 @@ async function callGemini(filterName, message) {
     }
 }
 
-// === API Endpoint for Chat ===
-app.post('/api/chat', async (req, res) => {
+// === API Endpoint for Chat (UPDATED TO USE GET) ===
+app.get('/api/chat', async (req, res) => { // FIX: Changed from app.post to app.get
     try {
-        const { message, filters } = req.body;
+        // FIX: Destructure from req.query instead of req.body
+        let { message, filters } = req.query;
 
-        if (!message || !Array.isArray(filters) || filters.length === 0) {
-            return res.status(400).json({ error: 'Invalid request: "message" and a non-empty "filters" array are required.' });
+        // FIX: Ensure 'filters' is always an array, as single query params are strings
+        if (filters && !Array.isArray(filters)) {
+            filters = [filters];
+        }
+
+        if (!message || !filters || filters.length === 0) {
+            return res.status(400).json({ error: 'Invalid request: "message" and at least one "filters" query parameter are required.' });
         }
         
         const apiCalls = filters.map(filter => callGemini(filter, message));
