@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,15 +9,34 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const apiKey = process.env.API_KEY;
+const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
-    console.error("API_KEY not found. Please set it in your environment variables.");
+    console.error("GEMINI_API_KEY not found. Please set it in your environment variables.");
     process.exit(1);
 }
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const safetySettings = [
+    {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+];
 
-// === Prompt builder function (merged from promptService.js) ===
+const model = genAI.getGenerativeModel({ model: "gemini-pro", safetySettings });
+
+
 function getPrompt(filterName, message) {
     switch (filterName) {
         case 'Describe':
@@ -58,7 +76,6 @@ function getPrompt(filterName, message) {
     }
 }
 
-// === Helper function to call Gemini API ===
 async function callGemini(filterName, message) {
     try {
         const prompt = getPrompt(filterName, message);
@@ -71,13 +88,10 @@ async function callGemini(filterName, message) {
     }
 }
 
-// === API Endpoint for Chat (UPDATED TO USE GET) ===
-app.get('/api/chat', async (req, res) => { // FIX: Changed from app.post to app.get
+app.get('/api/chat', async (req, res) => {
     try {
-        // FIX: Destructure from req.query instead of req.body
         let { message, filters } = req.query;
 
-        // FIX: Ensure 'filters' is always an array, as single query params are strings
         if (filters && !Array.isArray(filters)) {
             filters = [filters];
         }
@@ -103,3 +117,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+    
