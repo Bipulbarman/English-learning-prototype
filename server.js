@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
@@ -10,15 +9,18 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Load API key from environment
 const apiKey = process.env.API_KEY;
 if (!apiKey) {
-    console.error("API_KEY not found. Please set it in your environment variables.");
+    console.error("❌ API_KEY not found. Please set it in your environment variables.");
     process.exit(1);
 }
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// === Prompt builder function (merged from promptService.js) ===
+// Create Gemini client
+const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); // ✅ matches free version tester
+
+// === Prompt builder ===
 function getPrompt(filterName, message) {
     switch (filterName) {
         case 'Describe':
@@ -28,7 +30,7 @@ function getPrompt(filterName, message) {
         case 'CorrectGrammar':
             return `Correct any grammatical errors in the following text. Only return the corrected text, nothing else.
             Original Text: "${message}"`;
-            
+
         case 'RephraseFluently':
             return `Rephrase the following text to make it sound more fluent and natural for a native speaker. Return only the rephrased text.
             Original Text: "${message}"`;
@@ -58,7 +60,7 @@ function getPrompt(filterName, message) {
     }
 }
 
-// === Helper function to call Gemini API ===
+// === Helper: Call Gemini ===
 async function callGemini(filterName, message) {
     try {
         const prompt = getPrompt(filterName, message);
@@ -71,7 +73,7 @@ async function callGemini(filterName, message) {
     }
 }
 
-// === API Endpoint for Chat ===
+// === API Endpoint ===
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, filters } = req.body;
@@ -79,9 +81,8 @@ app.post('/api/chat', async (req, res) => {
         if (!message || !Array.isArray(filters) || filters.length === 0) {
             return res.status(400).json({ error: 'Invalid request: "message" and a non-empty "filters" array are required.' });
         }
-        
-        const apiCalls = filters.map(filter => callGemini(filter, message));
-        const results = await Promise.all(apiCalls);
+
+        const results = await Promise.all(filters.map(f => callGemini(f, message)));
         res.json(results);
     } catch (error) {
         console.error('Error in /api/chat endpoint:', error);
@@ -89,11 +90,11 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// Health check route for Render
+// === Health check for Render ===
 app.get('/', (req, res) => {
-    res.send('Gemini Chat Backend is running!');
+    res.send('✅ Gemini Chat Backend is running!');
 });
 
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`🚀 Server is running on port ${PORT}`);
 });
